@@ -17,9 +17,6 @@
 
 package com.velocitypowered.proxy.protocol;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.velocitypowered.proxy.protocol.util.NettyPreconditions.checkFrame;
-
 import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.api.proxy.crypto.IdentifiedKey;
 import com.velocitypowered.api.util.GameProfile;
@@ -34,6 +31,10 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.handler.codec.CorruptedFrameException;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.EncoderException;
+import net.kyori.adventure.nbt.BinaryTagIO;
+import net.kyori.adventure.nbt.CompoundBinaryTag;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -41,9 +42,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import net.kyori.adventure.nbt.BinaryTagIO;
-import net.kyori.adventure.nbt.CompoundBinaryTag;
-import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.velocitypowered.proxy.protocol.util.NettyPreconditions.checkFrame;
 
 public enum ProtocolUtils {
   ;

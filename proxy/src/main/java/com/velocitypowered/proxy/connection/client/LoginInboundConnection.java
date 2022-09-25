@@ -28,14 +28,15 @@ import com.velocitypowered.proxy.protocol.packet.LoginPluginResponse;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import net.kyori.adventure.text.Component;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import space.vectrix.flare.fastutil.Int2ObjectSyncMap;
+
 import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import net.kyori.adventure.text.Component;
-import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
-import space.vectrix.flare.fastutil.Int2ObjectSyncMap;
 
 public class LoginInboundConnection implements LoginPhaseConnection, KeyIdentifiable {
 

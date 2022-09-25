@@ -17,9 +17,6 @@
 
 package com.velocitypowered.proxy.protocol.netty;
 
-import static com.velocitypowered.api.event.query.ProxyQueryEvent.QueryType.BASIC;
-import static com.velocitypowered.api.event.query.ProxyQueryEvent.QueryType.FULL;
-
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableSet;
@@ -34,19 +31,18 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.DatagramPacket;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.apache.logging.log4j.LogManager;
+
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.apache.logging.log4j.LogManager;
+
+import static com.velocitypowered.api.event.query.ProxyQueryEvent.QueryType.BASIC;
+import static com.velocitypowered.api.event.query.ProxyQueryEvent.QueryType.FULL;
 
 public class GS4QueryHandler extends SimpleChannelInboundHandler<DatagramPacket> {
 

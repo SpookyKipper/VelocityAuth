@@ -20,9 +20,10 @@ package com.velocitypowered.proxy.protocol.packet.brigadier;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.velocitypowered.api.network.ProtocolVersion;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 import java.util.HashMap;
 import java.util.Map;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class ArgumentIdentifier {
 

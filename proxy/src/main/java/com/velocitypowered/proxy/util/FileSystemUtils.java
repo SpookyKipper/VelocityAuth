@@ -18,6 +18,7 @@
 package com.velocitypowered.proxy.util;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;

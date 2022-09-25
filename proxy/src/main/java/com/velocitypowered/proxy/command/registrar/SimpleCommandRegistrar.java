@@ -22,6 +22,7 @@ import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.proxy.command.brigadier.StringArrayArgumentType;
 import com.velocitypowered.proxy.command.invocation.SimpleCommandInvocation;
+
 import java.util.concurrent.locks.Lock;
 
 /**

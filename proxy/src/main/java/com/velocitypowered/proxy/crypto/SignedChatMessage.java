@@ -20,12 +20,13 @@ package com.velocitypowered.proxy.crypto;
 import com.google.common.base.Preconditions;
 import com.velocitypowered.api.proxy.crypto.SignedMessage;
 import com.velocitypowered.proxy.util.except.QuietDecoderException;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 import java.security.PublicKey;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
 import java.util.UUID;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class SignedChatMessage implements SignedMessage {
 

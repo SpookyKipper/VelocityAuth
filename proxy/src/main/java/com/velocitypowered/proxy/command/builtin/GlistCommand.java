@@ -17,8 +17,6 @@
 
 package com.velocitypowered.proxy.command.builtin;
 
-import static com.mojang.brigadier.arguments.StringArgumentType.getString;
-
 import com.google.common.collect.ImmutableList;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -32,13 +30,16 @@ import com.velocitypowered.api.permission.Tristate;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
-import java.util.List;
-import java.util.Optional;
 import net.kyori.adventure.identity.Identity;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
+
+import java.util.List;
+import java.util.Optional;
+
+import static com.mojang.brigadier.arguments.StringArgumentType.getString;
 
 public class GlistCommand {
 

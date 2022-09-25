@@ -24,6 +24,7 @@ import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.proxy.command.VelocityCommands;
 import com.velocitypowered.proxy.command.brigadier.StringArrayArgumentType;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;

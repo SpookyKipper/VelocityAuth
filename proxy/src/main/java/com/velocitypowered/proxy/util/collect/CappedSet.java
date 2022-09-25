@@ -19,6 +19,7 @@ package com.velocitypowered.proxy.util.collect;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ForwardingSet;
+
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;

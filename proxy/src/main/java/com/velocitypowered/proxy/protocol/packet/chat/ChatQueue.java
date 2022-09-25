@@ -20,6 +20,7 @@ package com.velocitypowered.proxy.protocol.packet.chat;
 import com.velocitypowered.proxy.connection.MinecraftConnection;
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
 import com.velocitypowered.proxy.protocol.MinecraftPacket;
+
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;

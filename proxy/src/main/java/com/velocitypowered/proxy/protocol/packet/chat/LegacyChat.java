@@ -17,15 +17,14 @@
 
 package com.velocitypowered.proxy.protocol.packet.chat;
 
-import com.google.common.base.Preconditions;
 import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.proxy.connection.MinecraftSessionHandler;
 import com.velocitypowered.proxy.protocol.MinecraftPacket;
 import com.velocitypowered.proxy.protocol.ProtocolUtils;
 import io.netty.buffer.ByteBuf;
-import java.util.UUID;
-import net.kyori.adventure.identity.Identity;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.UUID;
 
 public class LegacyChat implements MinecraftPacket {
 

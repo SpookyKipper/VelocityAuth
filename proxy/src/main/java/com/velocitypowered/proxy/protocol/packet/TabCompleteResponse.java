@@ -17,18 +17,19 @@
 
 package com.velocitypowered.proxy.protocol.packet;
 
-import static com.velocitypowered.api.network.ProtocolVersion.MINECRAFT_1_13;
-
 import com.google.common.base.MoreObjects;
 import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.proxy.connection.MinecraftSessionHandler;
 import com.velocitypowered.proxy.protocol.MinecraftPacket;
 import com.velocitypowered.proxy.protocol.ProtocolUtils;
 import io.netty.buffer.ByteBuf;
-import java.util.ArrayList;
-import java.util.List;
 import net.kyori.adventure.text.Component;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.velocitypowered.api.network.ProtocolVersion.MINECRAFT_1_13;
 
 public class TabCompleteResponse implements MinecraftPacket {
 

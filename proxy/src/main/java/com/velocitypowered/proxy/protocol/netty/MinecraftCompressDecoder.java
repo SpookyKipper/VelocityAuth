@@ -17,16 +17,17 @@
 
 package com.velocitypowered.proxy.protocol.netty;
 
-import static com.velocitypowered.natives.util.MoreByteBufUtils.ensureCompatible;
-import static com.velocitypowered.natives.util.MoreByteBufUtils.preferredBuffer;
-import static com.velocitypowered.proxy.protocol.util.NettyPreconditions.checkFrame;
-
 import com.velocitypowered.natives.compression.VelocityCompressor;
 import com.velocitypowered.proxy.protocol.ProtocolUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
+
 import java.util.List;
+
+import static com.velocitypowered.natives.util.MoreByteBufUtils.ensureCompatible;
+import static com.velocitypowered.natives.util.MoreByteBufUtils.preferredBuffer;
+import static com.velocitypowered.proxy.protocol.util.NettyPreconditions.checkFrame;
 
 public class MinecraftCompressDecoder extends MessageToMessageDecoder<ByteBuf> {
 

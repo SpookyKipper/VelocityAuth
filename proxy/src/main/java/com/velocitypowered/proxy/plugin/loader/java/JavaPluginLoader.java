@@ -31,6 +31,7 @@ import com.velocitypowered.proxy.plugin.PluginClassLoader;
 import com.velocitypowered.proxy.plugin.loader.PluginLoader;
 import com.velocitypowered.proxy.plugin.loader.VelocityPluginContainer;
 import com.velocitypowered.proxy.plugin.loader.VelocityPluginDescription;
+
 import java.io.BufferedInputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;

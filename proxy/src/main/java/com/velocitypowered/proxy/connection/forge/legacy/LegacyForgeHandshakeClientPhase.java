@@ -25,8 +25,9 @@ import com.velocitypowered.proxy.connection.client.ClientConnectionPhase;
 import com.velocitypowered.proxy.connection.client.ClientPlaySessionHandler;
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
 import com.velocitypowered.proxy.protocol.packet.PluginMessage;
-import java.util.List;
+
 import javax.annotation.Nullable;
+import java.util.List;
 
 /**
  * Allows for simple tracking of the phase that the Legacy Forge handshake is in.

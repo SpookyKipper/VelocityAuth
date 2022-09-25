@@ -28,6 +28,7 @@ import io.netty.resolver.InetNameResolver;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
+
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;

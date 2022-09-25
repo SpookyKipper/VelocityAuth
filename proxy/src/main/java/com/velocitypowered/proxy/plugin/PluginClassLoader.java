@@ -18,6 +18,7 @@
 package com.velocitypowered.proxy.plugin;
 
 import com.velocitypowered.proxy.Velocity;
+
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;

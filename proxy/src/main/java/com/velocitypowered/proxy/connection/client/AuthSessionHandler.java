@@ -17,8 +17,6 @@
 
 package com.velocitypowered.proxy.connection.client;
 
-import static com.velocitypowered.api.network.ProtocolVersion.MINECRAFT_1_8;
-
 import com.google.common.base.Preconditions;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.LoginEvent;
@@ -41,15 +39,18 @@ import com.velocitypowered.proxy.protocol.StateRegistry;
 import com.velocitypowered.proxy.protocol.packet.ServerLoginSuccess;
 import com.velocitypowered.proxy.protocol.packet.SetCompression;
 import io.netty.buffer.ByteBuf;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import static com.velocitypowered.api.network.ProtocolVersion.MINECRAFT_1_8;
 
 public class AuthSessionHandler implements MinecraftSessionHandler {
 
@@ -60,7 +61,7 @@ public class AuthSessionHandler implements MinecraftSessionHandler {
   private final LoginInboundConnection inbound;
   private GameProfile profile;
   private @MonotonicNonNull ConnectedPlayer connectedPlayer;
-  private final boolean onlineMode;
+  public final boolean onlineMode;
 
   AuthSessionHandler(VelocityServer server, LoginInboundConnection inbound,
                      GameProfile profile, boolean onlineMode) {

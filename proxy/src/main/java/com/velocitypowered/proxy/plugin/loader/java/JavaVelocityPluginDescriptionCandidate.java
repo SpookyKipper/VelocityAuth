@@ -17,14 +17,15 @@
 
 package com.velocitypowered.proxy.plugin.loader.java;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
 import com.velocitypowered.api.plugin.meta.PluginDependency;
 import com.velocitypowered.proxy.plugin.loader.VelocityPluginDescription;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
-import org.checkerframework.checker.nullness.qual.Nullable;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 class JavaVelocityPluginDescriptionCandidate extends VelocityPluginDescription {
 

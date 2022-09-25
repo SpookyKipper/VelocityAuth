@@ -19,6 +19,7 @@ package com.velocitypowered.proxy.plugin.loader;
 
 import com.velocitypowered.api.plugin.PluginContainer;
 import com.velocitypowered.api.plugin.PluginDescription;
+
 import java.util.Optional;
 
 public class VelocityPluginContainer implements PluginContainer {

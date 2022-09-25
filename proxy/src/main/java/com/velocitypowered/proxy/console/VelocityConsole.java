@@ -17,16 +17,12 @@
 
 package com.velocitypowered.proxy.console;
 
-import static com.velocitypowered.api.permission.PermissionFunction.ALWAYS_TRUE;
-
 import com.velocitypowered.api.event.permission.PermissionsSetupEvent;
 import com.velocitypowered.api.permission.PermissionFunction;
 import com.velocitypowered.api.permission.Tristate;
 import com.velocitypowered.api.proxy.ConsoleCommandSource;
 import com.velocitypowered.proxy.VelocityServer;
 import com.velocitypowered.proxy.util.ClosestLocaleMatcher;
-import java.util.List;
-import java.util.Locale;
 import net.kyori.adventure.audience.MessageType;
 import net.kyori.adventure.identity.Identity;
 import net.kyori.adventure.permission.PermissionChecker;
@@ -47,6 +43,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jline.reader.Candidate;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
+
+import java.util.List;
+import java.util.Locale;
+
+import static com.velocitypowered.api.permission.PermissionFunction.ALWAYS_TRUE;
 
 public final class VelocityConsole extends SimpleTerminalConsole implements ConsoleCommandSource {
 

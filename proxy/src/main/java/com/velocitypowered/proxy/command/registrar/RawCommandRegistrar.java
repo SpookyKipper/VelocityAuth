@@ -22,6 +22,7 @@ import com.mojang.brigadier.tree.RootCommandNode;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.RawCommand;
 import com.velocitypowered.proxy.command.invocation.RawCommandInvocation;
+
 import java.util.concurrent.locks.Lock;
 
 /**

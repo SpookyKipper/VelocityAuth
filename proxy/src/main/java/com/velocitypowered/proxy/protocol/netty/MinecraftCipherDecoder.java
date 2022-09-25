@@ -23,6 +23,7 @@ import com.velocitypowered.natives.util.MoreByteBufUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
+
 import java.util.List;
 
 public class MinecraftCipherDecoder extends MessageToMessageDecoder<ByteBuf> {

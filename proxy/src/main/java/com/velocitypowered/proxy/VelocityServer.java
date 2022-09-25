@@ -22,21 +22,33 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.mojang.brigadier.context.CommandContextBuilder;
+import com.mojang.brigadier.tree.CommandNode;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import com.mojang.brigadier.tree.RootCommandNode;
+import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyReloadEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.api.plugin.PluginContainer;
+import com.velocitypowered.api.plugin.PluginDescription;
 import com.velocitypowered.api.plugin.PluginManager;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.proxy.ServerConnection;
 import com.velocitypowered.api.proxy.player.ResourcePackInfo;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
 import com.velocitypowered.api.util.Favicon;
 import com.velocitypowered.api.util.GameProfile;
 import com.velocitypowered.api.util.ProxyVersion;
+import com.velocitypowered.proxy.auth.VelocityAuth;
+import com.velocitypowered.proxy.auth.commands.Command;
+import com.velocitypowered.proxy.command.CommandGraphInjector;
 import com.velocitypowered.proxy.command.VelocityCommandManager;
+import com.velocitypowered.proxy.command.VelocityCommands;
+import com.velocitypowered.proxy.command.brigadier.VelocityArgumentCommandNode;
 import com.velocitypowered.proxy.command.builtin.GlistCommand;
 import com.velocitypowered.proxy.command.builtin.ServerCommand;
 import com.velocitypowered.proxy.command.builtin.ShutdownCommand;
@@ -67,30 +79,6 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.KeyPair;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.IntFunction;
-import java.util.stream.Collectors;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
 import net.kyori.adventure.key.Key;
@@ -105,650 +93,778 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.KeyPair;
+import java.security.PrivilegedAction;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntFunction;
+import java.util.stream.Collectors;
+
 public class VelocityServer implements ProxyServer, ForwardingAudience {
 
-  private static final Logger logger = LogManager.getLogger(VelocityServer.class);
-  public static final Gson GENERAL_GSON = new GsonBuilder()
-      .registerTypeHierarchyAdapter(Favicon.class, FaviconSerializer.INSTANCE)
-      .registerTypeHierarchyAdapter(GameProfile.class, GameProfileSerializer.INSTANCE)
-      .create();
-  private static final Gson PRE_1_16_PING_SERIALIZER = ProtocolUtils
-      .getJsonChatSerializer(ProtocolVersion.MINECRAFT_1_15_2)
-      .serializer()
-      .newBuilder()
-      .registerTypeHierarchyAdapter(Favicon.class, FaviconSerializer.INSTANCE)
-      .create();
-  private static final Gson POST_1_16_PING_SERIALIZER = ProtocolUtils
-      .getJsonChatSerializer(ProtocolVersion.MINECRAFT_1_16)
-      .serializer()
-      .newBuilder()
-      .registerTypeHierarchyAdapter(Favicon.class, FaviconSerializer.INSTANCE)
-      .create();
+    public static final Gson GENERAL_GSON = new GsonBuilder()
+            .registerTypeHierarchyAdapter(Favicon.class, FaviconSerializer.INSTANCE)
+            .registerTypeHierarchyAdapter(GameProfile.class, GameProfileSerializer.INSTANCE)
+            .create();
+    private static final Logger logger = LogManager.getLogger(VelocityServer.class);
+    private static final Gson PRE_1_16_PING_SERIALIZER = ProtocolUtils
+            .getJsonChatSerializer(ProtocolVersion.MINECRAFT_1_15_2)
+            .serializer()
+            .newBuilder()
+            .registerTypeHierarchyAdapter(Favicon.class, FaviconSerializer.INSTANCE)
+            .create();
+    private static final Gson POST_1_16_PING_SERIALIZER = ProtocolUtils
+            .getJsonChatSerializer(ProtocolVersion.MINECRAFT_1_16)
+            .serializer()
+            .newBuilder()
+            .registerTypeHierarchyAdapter(Favicon.class, FaviconSerializer.INSTANCE)
+            .create();
 
-  private final ConnectionManager cm;
-  private final ProxyOptions options;
-  private @MonotonicNonNull VelocityConfiguration configuration;
-  private @MonotonicNonNull KeyPair serverKeyPair;
-  private final ServerMap servers;
-  private final VelocityCommandManager commandManager;
-  private final AtomicBoolean shutdownInProgress = new AtomicBoolean(false);
-  private boolean shutdown = false;
-  private final VelocityPluginManager pluginManager;
-  private final AdventureBossBarManager bossBarManager;
+    private final ConnectionManager cm;
+    private final ProxyOptions options;
+    private final ServerMap servers;
+    private final VelocityCommandManager commandManager;
+    private final AtomicBoolean shutdownInProgress = new AtomicBoolean(false);
+    private final VelocityPluginManager pluginManager;
+    private final AdventureBossBarManager bossBarManager;
+    private final Map<UUID, ConnectedPlayer> connectionsByUuid = new ConcurrentHashMap<>();
+    private final Map<String, ConnectedPlayer> connectionsByName = new ConcurrentHashMap<>();
+    private final VelocityConsole console;
+    private final VelocityEventManager eventManager;
+    private final VelocityScheduler scheduler;
+    private final VelocityChannelRegistrar channelRegistrar = new VelocityChannelRegistrar();
+    private final ServerListPingHandler serverListPingHandler;
+    private @MonotonicNonNull VelocityConfiguration configuration;
+    private @MonotonicNonNull KeyPair serverKeyPair;
+    private boolean shutdown = false;
+    private @MonotonicNonNull Ratelimiter ipAttemptLimiter;
 
-  private final Map<UUID, ConnectedPlayer> connectionsByUuid = new ConcurrentHashMap<>();
-  private final Map<String, ConnectedPlayer> connectionsByName = new ConcurrentHashMap<>();
-  private final VelocityConsole console;
-  private @MonotonicNonNull Ratelimiter ipAttemptLimiter;
-  private final VelocityEventManager eventManager;
-  private final VelocityScheduler scheduler;
-  private final VelocityChannelRegistrar channelRegistrar = new VelocityChannelRegistrar();
-  private ServerListPingHandler serverListPingHandler;
-
-  VelocityServer(final ProxyOptions options) {
-    pluginManager = new VelocityPluginManager(this);
-    eventManager = new VelocityEventManager(pluginManager);
-    commandManager = new VelocityCommandManager(eventManager);
-    scheduler = new VelocityScheduler(pluginManager);
-    console = new VelocityConsole(this);
-    cm = new ConnectionManager(this);
-    servers = new ServerMap(this);
-    serverListPingHandler = new ServerListPingHandler(this);
-    this.options = options;
-    this.bossBarManager = new AdventureBossBarManager();
-  }
-
-  public KeyPair getServerKeyPair() {
-    return serverKeyPair;
-  }
-
-  @Override
-  public VelocityConfiguration getConfiguration() {
-    return this.configuration;
-  }
-
-  @Override
-  public ProxyVersion getVersion() {
-    Package pkg = VelocityServer.class.getPackage();
-    String implName;
-    String implVersion;
-    String implVendor;
-    if (pkg != null) {
-      implName = MoreObjects.firstNonNull(pkg.getImplementationTitle(), "Velocity");
-      implVersion = MoreObjects.firstNonNull(pkg.getImplementationVersion(), "<unknown>");
-      implVendor = MoreObjects.firstNonNull(pkg.getImplementationVendor(), "Velocity Contributors");
-    } else {
-      implName = "Velocity";
-      implVersion = "<unknown>";
-      implVendor = "Velocity Contributors";
+    VelocityServer(final ProxyOptions options) throws Exception {
+        pluginManager = new VelocityPluginManager(this);
+        eventManager = new VelocityEventManager(pluginManager);
+        commandManager = new VelocityCommandManager(eventManager);
+        scheduler = new VelocityScheduler(pluginManager);
+        console = new VelocityConsole(this);
+        cm = new ConnectionManager(this);
+        servers = new ServerMap(this);
+        serverListPingHandler = new ServerListPingHandler(this);
+        this.options = options;
+        this.bossBarManager = new AdventureBossBarManager();
     }
 
-    return new ProxyVersion(implName, implVendor, implVersion);
-  }
-
-  @Override
-  public VelocityCommandManager getCommandManager() {
-    return commandManager;
-  }
-
-  void awaitProxyShutdown() {
-    cm.getBossGroup().terminationFuture().syncUninterruptibly();
-  }
-
-  @EnsuresNonNull({"serverKeyPair", "servers", "pluginManager", "eventManager", "scheduler",
-      "console", "cm", "configuration"})
-  void start() {
-    logger.info("Booting up {} {}...", getVersion().getName(), getVersion().getVersion());
-    console.setupStreams();
-
-    registerTranslations();
-
-    serverKeyPair = EncryptionUtils.createRsaKeyPair(1024);
-
-    cm.logChannelInformation();
-
-    // Initialize commands first
-    commandManager.register("velocity", new VelocityCommand(this));
-    commandManager.register("server", new ServerCommand(this));
-    commandManager.register("shutdown", ShutdownCommand.command(this),
-        "end", "stop");
-    new GlistCommand(this).register();
-
-    this.doStartupConfigLoad();
-
-    for (Map.Entry<String, String> entry : configuration.getServers().entrySet()) {
-      servers.register(new ServerInfo(entry.getKey(), AddressUtil.parseAddress(entry.getValue())));
+    public static Gson getPingGsonInstance(ProtocolVersion version) {
+        return version.compareTo(ProtocolVersion.MINECRAFT_1_16) >= 0 ? POST_1_16_PING_SERIALIZER
+                : PRE_1_16_PING_SERIALIZER;
     }
 
-    ipAttemptLimiter = Ratelimiters.createWithMilliseconds(configuration.getLoginRatelimit());
-    loadPlugins();
-
-    // Go ahead and fire the proxy initialization event. We block since plugins should have a chance
-    // to fully initialize before we accept any connections to the server.
-    eventManager.fire(new ProxyInitializeEvent()).join();
-
-    // init console permissions after plugins are loaded
-    console.setupPermissions();
-
-    final Integer port = this.options.getPort();
-    if (port != null) {
-      logger.debug("Overriding bind port to {} from command line option", port);
-      this.cm.bind(new InetSocketAddress(configuration.getBind().getHostString(), port));
-    } else {
-      this.cm.bind(configuration.getBind());
+    public KeyPair getServerKeyPair() {
+        return serverKeyPair;
     }
 
-    if (configuration.isQueryEnabled()) {
-      this.cm.queryBind(configuration.getBind().getHostString(), configuration.getQueryPort());
+    @Override
+    public VelocityConfiguration getConfiguration() {
+        return this.configuration;
     }
 
-    Metrics.VelocityMetrics.startMetrics(this, configuration.getMetrics());
-  }
+    @Override
+    public ProxyVersion getVersion() {
+        Package pkg = VelocityServer.class.getPackage();
+        String implName;
+        String implVersion;
+        String implVendor;
+        if (pkg != null) {
+            implName = MoreObjects.firstNonNull(pkg.getImplementationTitle(), "Velocity");
+            implVersion = MoreObjects.firstNonNull(pkg.getImplementationVersion(), "<unknown>");
+            implVendor = MoreObjects.firstNonNull(pkg.getImplementationVendor(), "Velocity Contributors");
+        } else {
+            implName = "Velocity";
+            implVersion = "<unknown>";
+            implVendor = "Velocity Contributors";
+        }
 
-  private void registerTranslations() {
-    final TranslationRegistry translationRegistry = TranslationRegistry
-        .create(Key.key("velocity", "translations"));
-    translationRegistry.defaultLocale(Locale.US);
-    try {
-      FileSystemUtils.visitResources(VelocityServer.class, path -> {
-        logger.info("Loading localizations...");
+        return new ProxyVersion(implName, implVendor, implVersion);
+    }
 
-        final Path langPath = Path.of("lang");
+    @Override
+    public VelocityCommandManager getCommandManager() {
+        return commandManager;
+    }
 
-        try {
-          if (!Files.exists(langPath)) {
-            Files.createDirectory(langPath);
-            Files.walk(path).forEach(file -> {
-              if (!Files.isRegularFile(file)) {
-                return;
-              }
-              try {
-                Path langFile = langPath.resolve(file.getFileName().toString());
-                if (!Files.exists(langFile)) {
-                  try (InputStream is = Files.newInputStream(file)) {
-                    Files.copy(is, langFile);
-                  }
+    void awaitProxyShutdown() {
+        cm.getBossGroup().terminationFuture().syncUninterruptibly();
+    }
+
+    @EnsuresNonNull({"serverKeyPair", "servers", "pluginManager", "eventManager", "scheduler",
+            "console", "cm", "configuration"})
+    void start() throws Exception {
+        logger.info("Booting up {} {}...", getVersion().getName(), getVersion().getVersion());
+        console.setupStreams();
+
+        registerTranslations();
+
+        serverKeyPair = EncryptionUtils.createRsaKeyPair(1024);
+
+        cm.logChannelInformation();
+
+        // Initialize commands first
+        commandManager.register("velocity", new VelocityCommand(this));
+        commandManager.register("server", new ServerCommand(this));
+        commandManager.register("shutdown", ShutdownCommand.command(this), "end", "stop");
+        new GlistCommand(this).register();
+        registerAdditionalCommands();
+
+        this.doStartupConfigLoad();
+
+        for (Map.Entry<String, String> entry : configuration.getServers().entrySet()) {
+            servers.register(new ServerInfo(entry.getKey(), AddressUtil.parseAddress(entry.getValue())));
+        }
+        // Register internal plugins
+        //pluginManager.registerPlugin(
+        //        new LimboAPI(org.slf4j.LoggerFactory.getLogger("limbo"),
+        //                this,
+        //                new File(System.getProperty("user.dir") + "/limbo").toPath()));
+        pluginManager.registerPlugin(new VelocityAuth(this,
+                org.slf4j.LoggerFactory.getLogger("auth"),
+                new File(System.getProperty("user.dir") + "/auth")));
+
+        ipAttemptLimiter = Ratelimiters.createWithMilliseconds(configuration.getLoginRatelimit());
+        loadPlugins();
+
+        // Go ahead and fire the proxy initialization event. We block since plugins should have a chance
+        // to fully initialize before we accept any connections to the server.
+        eventManager.fire(new ProxyInitializeEvent()).join();
+
+        // init console permissions after plugins are loaded
+        console.setupPermissions();
+
+        final Integer port = this.options.getPort();
+        if (port != null) {
+            logger.debug("Overriding bind port to {} from command line option", port);
+            this.cm.bind(new InetSocketAddress(configuration.getBind().getHostString(), port));
+        } else {
+            this.cm.bind(configuration.getBind());
+        }
+
+        if (configuration.isQueryEnabled()) {
+            this.cm.queryBind(configuration.getBind().getHostString(), configuration.getQueryPort());
+        }
+
+        Metrics.VelocityMetrics.startMetrics(this, configuration.getMetrics());
+    }
+
+    private void registerAdditionalCommands() {
+        commandManager.register(new Command.Builder("help", "velocity.help", invocation -> {
+            Collection<CommandNode<CommandSource>> children = commandManager.dispatcher.getRoot().getChildren();
+            logger.info("Showing " + children.size() + " registered velocity commands:");
+            for (CommandNode<CommandSource> child : children) {
+                logger.info(child.getName());
+            }
+        }, "?").build());
+
+        commandManager.register(new Command.Builder("plugins", "velocity.plugins", invocation -> {
+            Collection<PluginContainer> plugins = pluginManager.getPlugins();
+            logger.info("Showing " + plugins.size() + " loaded velocity plugins:");
+            for (PluginContainer plugin : plugins) {
+                PluginDescription d = plugin.getDescription();
+                logger.info(d.getName().orElse("-") + " by " + d.getAuthors().get(0) + " (" + d.getId() + "/" + d.getVersion().orElse("-") + ")");
+            }
+        }, "pl").build());
+
+        commandManager.register(new Command.Builder("servers", "velocity.servers", invocation -> {
+            Collection<RegisteredServer> servers = this.servers.getAllServers();
+            logger.info("Showing " + servers.size() + " registered Minecraft servers:");
+            for (RegisteredServer server : servers) {
+                ServerInfo d = server.getServerInfo();
+                String details = null;
+                try {
+                    details = server.ping().get().toString();
+                } catch (Exception e) {
+                    details = e.getMessage();
                 }
-              } catch (IOException e) {
-                logger.error("Encountered an I/O error whilst loading translations", e);
-              }
-            });
-          }
+                logger.info(d.getName() + " at " + d.getAddress() + " details: " + details + "");
+            }
+        }).build());
 
-
-          Files.walk(langPath).forEach(file -> {
-            if (!Files.isRegularFile(file)) {
-              return;
+        commandManager.register(new Command.Builder("player", "velocity.player", invocation -> {
+            if (invocation.arguments().length != 1) {
+                logger.warn("This command requires at least 1 argument (player name).");
+                return;
+            }
+            String playerName = invocation.arguments()[0];
+            Player player = getPlayer(playerName).orElse(null);
+            if (player == null) {
+                logger.warn("Failed to find player named '" + playerName + "'.");
+                return;
+            }
+            logger.info("username: " + player.getUsername());
+            logger.info("uuid: " + player.getUniqueId().toString());
+            logger.info("client-ip: " + player.getRemoteAddress().toString());
+            logger.info("paid-minecraft: " + player.isOnlineMode());
+            logger.info("version: " + player.getProtocolVersion().toString());
+            ServerConnection serverConnection = player.getCurrentServer().orElse(null);
+            if (serverConnection == null) {
+                logger.info("connected-server: Not connected yet.");
+                logger.info("locale: Not connected yet.");
+            } else {
+                logger.info("connected-server: " + serverConnection.getServerInfo().getName() + "/" + serverConnection.getServerInfo().getAddress().toString());
+                logger.info("locale: " + player.getEffectiveLocale().toString());
+            }
+            logger.info("game-profile: " + player.getGameProfile().toString());
+            logger.info("client-brand: " + player.getClientBrand());
+            StringBuilder sb = new StringBuilder();
+            commandManager.lock.readLock().lock();
+            try {
+                for (CommandNode<CommandSource> command : commandManager.dispatcher.getRoot().getChildren()) {
+                    if (hasPermissionForAll(player, command))
+                        sb.append(command.getName()).append(" ");
+                }
+            } finally {
+                commandManager.lock.readLock().unlock();
             }
 
-            String filename = com.google.common.io.Files
-                .getNameWithoutExtension(file.getFileName().toString());
-            String localeName = filename.replace("messages_", "")
-                .replace("messages", "")
-                .replace('_', '-');
-            Locale locale = localeName.isBlank()
-                ? Locale.US
-                : Locale.forLanguageTag(localeName);
-
-            translationRegistry.registerAll(locale, file, false);
-            ClosestLocaleMatcher.INSTANCE.registerKnown(locale);
-          });
-        } catch (IOException e) {
-          logger.error("Encountered an I/O error whilst loading translations", e);
-        }
-      }, "com", "velocitypowered", "proxy", "l10n");
-    } catch (IOException e) {
-      logger.error("Encountered an I/O error whilst loading translations", e);
-      return;
-    }
-    GlobalTranslator.translator().addSource(translationRegistry);
-  }
-
-  @SuppressFBWarnings("DM_EXIT")
-  private void doStartupConfigLoad() {
-    try {
-      Path configPath = Path.of("velocity.toml");
-      configuration = VelocityConfiguration.read(configPath);
-
-      if (!configuration.validate()) {
-        logger.error("Your configuration is invalid. Velocity will not start up until the errors "
-            + "are resolved.");
-        LogManager.shutdown();
-        System.exit(1);
-      }
-
-      commandManager.setAnnounceProxyCommands(configuration.isAnnounceProxyCommands());
-    } catch (Exception e) {
-      logger.error("Unable to read/load/save your velocity.toml. The server will shut down.", e);
-      LogManager.shutdown();
-      System.exit(1);
-    }
-  }
-
-  private void loadPlugins() {
-    logger.info("Loading plugins...");
-
-    try {
-      Path pluginPath = Path.of("plugins");
-
-      if (!pluginPath.toFile().exists()) {
-        Files.createDirectory(pluginPath);
-      } else {
-        if (!pluginPath.toFile().isDirectory()) {
-          logger.warn("Plugin location {} is not a directory, continuing without loading plugins",
-              pluginPath);
-          return;
-        }
-
-        pluginManager.loadPlugins(pluginPath);
-      }
-    } catch (Exception e) {
-      logger.error("Couldn't load plugins", e);
+            logger.info("executable-commands: " + sb.toString());
+        }).build());
     }
 
-    // Register the plugin main classes so that we can fire the proxy initialize event
-    for (PluginContainer plugin : pluginManager.getPlugins()) {
-      Optional<?> instance = plugin.getInstance();
-      if (instance.isPresent()) {
-        try {
-          eventManager.registerInternally(plugin, instance.get());
-        } catch (Exception e) {
-          logger.error("Unable to register plugin listener for {}",
-              plugin.getDescription().getName().orElse(plugin.getDescription().getId()), e);
-        }
-      }
+    /**
+     * Checks the command and goes through all child nodes recursively. <br>
+     * Only returns true if the source/executor has permission to execute all of them. <br>
+     * Important: Acquire the readlock of the command manager before.
+     */
+    private boolean hasPermissionForAll(CommandSource source, CommandNode<CommandSource> command){
+        final RootCommandNode<CommandSource> origin = commandManager.dispatcher.getRoot();
+        final CommandContextBuilder<CommandSource> rootContext =
+                new CommandContextBuilder<>(commandManager.dispatcher, source, origin, 0);
+        return internal_hasPermissionForAll(source, command, rootContext);
     }
 
-    logger.info("Loaded {} plugins", pluginManager.getPlugins().size());
-  }
-
-  public Bootstrap createBootstrap(@Nullable EventLoopGroup group) {
-    return this.cm.createWorker(group);
-  }
-
-  public ChannelInitializer<Channel> getBackendChannelInitializer() {
-    return this.cm.backendChannelInitializer.get();
-  }
-
-  public ServerListPingHandler getServerListPingHandler() {
-    return serverListPingHandler;
-  }
-
-  public boolean isShutdown() {
-    return shutdown;
-  }
-
-  /**
-   * Reloads the proxy's configuration.
-   *
-   * @return {@code true} if successful, {@code false} if we can't read the configuration
-   * @throws IOException if we can't read {@code velocity.toml}
-   */
-  public boolean reloadConfiguration() throws IOException {
-    Path configPath = Path.of("velocity.toml");
-    VelocityConfiguration newConfiguration = VelocityConfiguration.read(configPath);
-
-    if (!newConfiguration.validate()) {
-      return false;
-    }
-
-    // Re-register servers. If a server is being replaced, make sure to note what players need to
-    // move back to a fallback server.
-    Collection<ConnectedPlayer> evacuate = new ArrayList<>();
-    for (Map.Entry<String, String> entry : newConfiguration.getServers().entrySet()) {
-      ServerInfo newInfo =
-          new ServerInfo(entry.getKey(), AddressUtil.parseAddress(entry.getValue()));
-      Optional<RegisteredServer> rs = servers.getServer(entry.getKey());
-      if (!rs.isPresent()) {
-        servers.register(newInfo);
-      } else if (!rs.get().getServerInfo().equals(newInfo)) {
-        for (Player player : rs.get().getPlayersConnected()) {
-          if (!(player instanceof ConnectedPlayer)) {
-            throw new IllegalStateException("ConnectedPlayer not found for player " + player
-                + " in server " + rs.get().getServerInfo().getName());
-          }
-          evacuate.add((ConnectedPlayer) player);
-        }
-        servers.unregister(rs.get().getServerInfo());
-        servers.register(newInfo);
-      }
-    }
-
-    // If we had any players to evacuate, let's move them now. Wait until they are all moved off.
-    if (!evacuate.isEmpty()) {
-      CountDownLatch latch = new CountDownLatch(evacuate.size());
-      for (ConnectedPlayer player : evacuate) {
-        Optional<RegisteredServer> next = player.getNextServerToTry();
-        if (next.isPresent()) {
-          player.createConnectionRequest(next.get()).connectWithIndication()
-              .whenComplete((success, ex) -> {
-                if (ex != null || success == null || !success) {
-                  player.disconnect(Component.text("Your server has been changed, but we could "
-                      + "not move you to any fallback servers."));
+    private boolean internal_hasPermissionForAll(CommandSource source, CommandNode<CommandSource> command,
+                                                 CommandContextBuilder<CommandSource> rootContext){
+        if (!command.canUse(source)) // canUse() always returns true I guess? Dunno for sure though.
+            return false;
+        else {
+            final CommandContextBuilder<CommandSource> context = rootContext.copy()
+                    .withNode(command, CommandGraphInjector.ALIAS_RANGE);
+            if (!command.canUse(context, CommandGraphInjector.ALIAS_READER))
+                return false;
+            else{
+                for (CommandNode<CommandSource> child : command.getChildren()) {
+                    if(!internal_hasPermissionForAll(source, child, rootContext)) return false;
                 }
-                latch.countDown();
-              });
-        } else {
-          latch.countDown();
-          player.disconnect(Component.text("Your server has been changed, but we could "
-              + "not move you to any fallback servers."));
+                return true;
+            }
         }
-      }
-      try {
-        latch.await();
-      } catch (InterruptedException e) {
-        logger.error("Interrupted whilst moving players", e);
-        Thread.currentThread().interrupt();
-      }
     }
 
-    // If we have a new bind address, bind to it
-    if (!configuration.getBind().equals(newConfiguration.getBind())) {
-      this.cm.bind(newConfiguration.getBind());
-      this.cm.close(configuration.getBind());
+    private void registerTranslations() {
+        final TranslationRegistry translationRegistry = TranslationRegistry
+                .create(Key.key("velocity", "translations"));
+        translationRegistry.defaultLocale(Locale.US);
+        try {
+            FileSystemUtils.visitResources(VelocityServer.class, path -> {
+                logger.info("Loading localizations...");
+
+                final Path langPath = Path.of("lang");
+
+                try {
+                    if (!Files.exists(langPath)) {
+                        Files.createDirectory(langPath);
+                        Files.walk(path).forEach(file -> {
+                            if (!Files.isRegularFile(file)) {
+                                return;
+                            }
+                            try {
+                                Path langFile = langPath.resolve(file.getFileName().toString());
+                                if (!Files.exists(langFile)) {
+                                    try (InputStream is = Files.newInputStream(file)) {
+                                        Files.copy(is, langFile);
+                                    }
+                                }
+                            } catch (IOException e) {
+                                logger.error("Encountered an I/O error whilst loading translations", e);
+                            }
+                        });
+                    }
+
+
+                    Files.walk(langPath).forEach(file -> {
+                        if (!Files.isRegularFile(file)) {
+                            return;
+                        }
+
+                        String filename = com.google.common.io.Files
+                                .getNameWithoutExtension(file.getFileName().toString());
+                        String localeName = filename.replace("messages_", "")
+                                .replace("messages", "")
+                                .replace('_', '-');
+                        Locale locale = localeName.isBlank()
+                                ? Locale.US
+                                : Locale.forLanguageTag(localeName);
+
+                        translationRegistry.registerAll(locale, file, false);
+                        ClosestLocaleMatcher.INSTANCE.registerKnown(locale);
+                    });
+                } catch (IOException e) {
+                    logger.error("Encountered an I/O error whilst loading translations", e);
+                }
+            }, "com", "velocitypowered", "proxy", "l10n");
+        } catch (IOException e) {
+            logger.error("Encountered an I/O error whilst loading translations", e);
+            return;
+        }
+        GlobalTranslator.translator().addSource(translationRegistry);
     }
 
-    if (configuration.isQueryEnabled() && (!newConfiguration.isQueryEnabled()
-        || newConfiguration.getQueryPort() != configuration.getQueryPort())) {
-      this.cm.close(new InetSocketAddress(
-          configuration.getBind().getHostString(), configuration.getQueryPort()));
+    @SuppressFBWarnings("DM_EXIT")
+    private void doStartupConfigLoad() {
+        try {
+            Path configPath = Path.of("velocity.toml");
+            configuration = VelocityConfiguration.read(configPath);
+
+            if (!configuration.validate()) {
+                logger.error("Your configuration is invalid. Velocity will not start up until the errors "
+                        + "are resolved.");
+                LogManager.shutdown();
+                System.exit(1);
+            }
+
+            commandManager.setAnnounceProxyCommands(configuration.isAnnounceProxyCommands());
+        } catch (Exception e) {
+            logger.error("Unable to read/load/save your velocity.toml. The server will shut down.", e);
+            LogManager.shutdown();
+            System.exit(1);
+        }
     }
 
-    if (newConfiguration.isQueryEnabled()) {
-      this.cm.queryBind(newConfiguration.getBind().getHostString(),
-          newConfiguration.getQueryPort());
-    }
-
-    commandManager.setAnnounceProxyCommands(newConfiguration.isAnnounceProxyCommands());
-    ipAttemptLimiter = Ratelimiters.createWithMilliseconds(newConfiguration.getLoginRatelimit());
-    this.configuration = newConfiguration;
-    eventManager.fireAndForget(new ProxyReloadEvent());
-    return true;
-  }
-
-  /**
-   * Shuts down the proxy, kicking players with the specified {@param reason}.
-   *
-   * @param explicitExit whether the user explicitly shut down the proxy
-   * @param reason message to kick online players with
-   */
-  public void shutdown(boolean explicitExit, Component reason) {
-    if (eventManager == null || pluginManager == null || cm == null || scheduler == null) {
-      throw new AssertionError();
-    }
-
-    if (!shutdownInProgress.compareAndSet(false, true)) {
-      return;
-    }
-
-    Runnable shutdownProcess = () -> {
-      logger.info("Shutting down the proxy...");
-
-      // Shutdown the connection manager, this should be
-      // done first to refuse new connections
-      cm.shutdown();
-
-      ImmutableList<ConnectedPlayer> players = ImmutableList.copyOf(connectionsByUuid.values());
-      for (ConnectedPlayer player : players) {
-        player.disconnect(reason);
-      }
-
-      try {
-        boolean timedOut = false;
+    private void loadPlugins() {
+        logger.info("Loading plugins...");
 
         try {
-          // Wait for the connections finish tearing down, this
-          // makes sure that all the disconnect events are being fired
+            Path pluginPath = Path.of("plugins");
 
-          CompletableFuture<Void> playersTeardownFuture = CompletableFuture.allOf(players.stream()
-                  .map(ConnectedPlayer::getTeardownFuture)
-                  .toArray((IntFunction<CompletableFuture<Void>[]>) CompletableFuture[]::new));
+            if (!pluginPath.toFile().exists()) {
+                Files.createDirectory(pluginPath);
+            } else {
+                if (!pluginPath.toFile().isDirectory()) {
+                    logger.warn("Plugin location {} is not a directory, continuing without loading plugins",
+                            pluginPath);
+                    return;
+                }
 
-          playersTeardownFuture.get(10, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-          timedOut = true;
-        } catch (ExecutionException e) {
-          timedOut = true;
-          logger.error("Exception while tearing down player connections", e);
+                pluginManager.loadPlugins(pluginPath);
+            }
+        } catch (Exception e) {
+            logger.error("Couldn't load plugins", e);
         }
 
-        eventManager.fire(new ProxyShutdownEvent()).join();
-
-        timedOut = !eventManager.shutdown() || timedOut;
-        timedOut = !scheduler.shutdown() || timedOut;
-
-        if (timedOut) {
-          logger.error("Your plugins took over 10 seconds to shut down.");
+        // Register the plugin main classes so that we can fire the proxy initialize event
+        for (PluginContainer plugin : pluginManager.getPlugins()) {
+            Optional<?> instance = plugin.getInstance();
+            if (instance.isPresent()) {
+                try {
+                    eventManager.registerInternally(plugin, instance.get());
+                } catch (Exception e) {
+                    logger.error("Unable to register plugin listener for {}",
+                            plugin.getDescription().getName().orElse(plugin.getDescription().getId()), e);
+                }
+            }
         }
-      } catch (InterruptedException e) {
-        // Not much we can do about this...
-        Thread.currentThread().interrupt();
-      }
 
-      // Since we manually removed the shutdown hook, we need to handle the shutdown ourselves.
-      LogManager.shutdown();
-
-      shutdown = true;
-
-      if (explicitExit) {
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-          @Override
-          @SuppressFBWarnings("DM_EXIT")
-          public Void run() {
-            System.exit(0);
-            return null;
-          }
-        });
-      }
-    };
-
-    if (explicitExit) {
-      Thread thread = new Thread(shutdownProcess);
-      thread.start();
-    } else {
-      shutdownProcess.run();
+        logger.info("Loaded {} plugins", pluginManager.getPlugins().size());
     }
-  }
 
-  /**
-   * Calls {@link #shutdown(boolean, Component)} with the default reason "Proxy shutting down."
-   *
-   * @param explicitExit whether the user explicitly shut down the proxy
-   */
-  public void shutdown(boolean explicitExit) {
-    shutdown(explicitExit, Component.translatable("velocity.kick.shutdown"));
-  }
-
-  @Override
-  public void shutdown(Component reason) {
-    shutdown(true, reason);
-  }
-
-  @Override
-  public void shutdown() {
-    shutdown(true);
-  }
-
-  public AsyncHttpClient getAsyncHttpClient() {
-    return cm.getHttpClient();
-  }
-
-  public Ratelimiter getIpAttemptLimiter() {
-    return ipAttemptLimiter;
-  }
-
-  /**
-   * Checks if the {@code connection} can be registered with the proxy.
-   * @param connection the connection to check
-   * @return {@code true} if we can register the connection, {@code false} if not
-   */
-  public boolean canRegisterConnection(ConnectedPlayer connection) {
-    if (configuration.isOnlineMode() && configuration.isOnlineModeKickExistingPlayers()) {
-      return true;
+    public Bootstrap createBootstrap(@Nullable EventLoopGroup group) {
+        return this.cm.createWorker(group);
     }
-    String lowerName = connection.getUsername().toLowerCase(Locale.US);
-    return !(connectionsByName.containsKey(lowerName)
-        || connectionsByUuid.containsKey(connection.getUniqueId()));
-  }
-  
-  /**
-   * Attempts to register the {@code connection} with the proxy.
-   * @param connection the connection to register
-   * @return {@code true} if we registered the connection, {@code false} if not
-   */
-  public boolean registerConnection(ConnectedPlayer connection) {
-    String lowerName = connection.getUsername().toLowerCase(Locale.US);
 
-    if (!this.configuration.isOnlineModeKickExistingPlayers()) {
-      if (connectionsByName.putIfAbsent(lowerName, connection) != null) {
-        return false;
-      }
-      if (connectionsByUuid.putIfAbsent(connection.getUniqueId(), connection) != null) {
-        connectionsByName.remove(lowerName, connection);
-        return false;
-      }
-    } else {
-      ConnectedPlayer existing = connectionsByUuid.get(connection.getUniqueId());
-      if (existing != null) {
-        existing.disconnect(Component.translatable("multiplayer.disconnect.duplicate_login"));
-      }
-
-      // We can now replace the entries as needed.
-      connectionsByName.put(lowerName, connection);
-      connectionsByUuid.put(connection.getUniqueId(), connection);
+    public ChannelInitializer<Channel> getBackendChannelInitializer() {
+        return this.cm.backendChannelInitializer.get();
     }
-    return true;
-  }
 
-  /**
-   * Unregisters the given player from the proxy.
-   *
-   * @param connection the connection to unregister
-   */
-  public void unregisterConnection(ConnectedPlayer connection) {
-    connectionsByName.remove(connection.getUsername().toLowerCase(Locale.US), connection);
-    connectionsByUuid.remove(connection.getUniqueId(), connection);
-    bossBarManager.onDisconnect(connection);
-  }
-
-  @Override
-  public Optional<Player> getPlayer(String username) {
-    Preconditions.checkNotNull(username, "username");
-    return Optional.ofNullable(connectionsByName.get(username.toLowerCase(Locale.US)));
-  }
-
-  @Override
-  public Optional<Player> getPlayer(UUID uuid) {
-    Preconditions.checkNotNull(uuid, "uuid");
-    return Optional.ofNullable(connectionsByUuid.get(uuid));
-  }
-
-  @Override
-  public Collection<Player> matchPlayer(String partialName) {
-    Objects.requireNonNull(partialName);
-
-    return getAllPlayers().stream().filter(p -> p.getUsername()
-            .regionMatches(true, 0, partialName, 0, partialName.length()))
-            .collect(Collectors.toList());
-  }
-
-  @Override
-  public Collection<RegisteredServer> matchServer(String partialName) {
-    Objects.requireNonNull(partialName);
-
-    return getAllServers().stream().filter(s -> s.getServerInfo().getName()
-            .regionMatches(true, 0, partialName, 0, partialName.length()))
-            .collect(Collectors.toList());
-  }
-
-  @Override
-  public Collection<Player> getAllPlayers() {
-    return ImmutableList.copyOf(connectionsByUuid.values());
-  }
-
-  @Override
-  public int getPlayerCount() {
-    return connectionsByUuid.size();
-  }
-
-  @Override
-  public Optional<RegisteredServer> getServer(String name) {
-    return servers.getServer(name);
-  }
-
-  @Override
-  public Collection<RegisteredServer> getAllServers() {
-    return servers.getAllServers();
-  }
-
-  @Override
-  public RegisteredServer createRawRegisteredServer(ServerInfo server) {
-    return servers.createRawRegisteredServer(server);
-  }
-
-  @Override
-  public RegisteredServer registerServer(ServerInfo server) {
-    return servers.register(server);
-  }
-
-  @Override
-  public void unregisterServer(ServerInfo server) {
-    servers.unregister(server);
-  }
-
-  @Override
-  public VelocityConsole getConsoleCommandSource() {
-    return console;
-  }
-
-  @Override
-  public PluginManager getPluginManager() {
-    return pluginManager;
-  }
-
-  @Override
-  public VelocityEventManager getEventManager() {
-    return eventManager;
-  }
-
-  @Override
-  public VelocityScheduler getScheduler() {
-    return scheduler;
-  }
-
-  @Override
-  public VelocityChannelRegistrar getChannelRegistrar() {
-    return channelRegistrar;
-  }
-
-  @Override
-  public InetSocketAddress getBoundAddress() {
-    if (configuration == null) {
-      throw new IllegalStateException(
-          "No configuration"); // even though you'll never get the chance... heh, heh
+    public ServerListPingHandler getServerListPingHandler() {
+        return serverListPingHandler;
     }
-    return configuration.getBind();
-  }
 
-  @Override
-  public @NonNull Iterable<? extends Audience> audiences() {
-    Collection<Audience> audiences = new ArrayList<>(this.getPlayerCount() + 1);
-    audiences.add(this.console);
-    audiences.addAll(this.getAllPlayers());
-    return audiences;
-  }
+    public boolean isShutdown() {
+        return shutdown;
+    }
 
-  public AdventureBossBarManager getBossBarManager() {
-    return bossBarManager;
-  }
+    /**
+     * Reloads the proxy's configuration.
+     *
+     * @return {@code true} if successful, {@code false} if we can't read the configuration
+     * @throws IOException if we can't read {@code velocity.toml}
+     */
+    public boolean reloadConfiguration() throws IOException {
+        Path configPath = Path.of("velocity.toml");
+        VelocityConfiguration newConfiguration = VelocityConfiguration.read(configPath);
 
-  public static Gson getPingGsonInstance(ProtocolVersion version) {
-    return version.compareTo(ProtocolVersion.MINECRAFT_1_16) >= 0 ? POST_1_16_PING_SERIALIZER
-        : PRE_1_16_PING_SERIALIZER;
-  }
+        if (!newConfiguration.validate()) {
+            return false;
+        }
 
-  @Override
-  public ResourcePackInfo.Builder createResourcePackBuilder(String url) {
-    return new VelocityResourcePackInfo.BuilderImpl(url);
-  }
+        // Re-register servers. If a server is being replaced, make sure to note what players need to
+        // move back to a fallback server.
+        Collection<ConnectedPlayer> evacuate = new ArrayList<>();
+        for (Map.Entry<String, String> entry : newConfiguration.getServers().entrySet()) {
+            ServerInfo newInfo =
+                    new ServerInfo(entry.getKey(), AddressUtil.parseAddress(entry.getValue()));
+            Optional<RegisteredServer> rs = servers.getServer(entry.getKey());
+            if (!rs.isPresent()) {
+                servers.register(newInfo);
+            } else if (!rs.get().getServerInfo().equals(newInfo)) {
+                for (Player player : rs.get().getPlayersConnected()) {
+                    if (!(player instanceof ConnectedPlayer)) {
+                        throw new IllegalStateException("ConnectedPlayer not found for player " + player
+                                + " in server " + rs.get().getServerInfo().getName());
+                    }
+                    evacuate.add((ConnectedPlayer) player);
+                }
+                servers.unregister(rs.get().getServerInfo());
+                servers.register(newInfo);
+            }
+        }
+
+        // If we had any players to evacuate, let's move them now. Wait until they are all moved off.
+        if (!evacuate.isEmpty()) {
+            CountDownLatch latch = new CountDownLatch(evacuate.size());
+            for (ConnectedPlayer player : evacuate) {
+                Optional<RegisteredServer> next = player.getNextServerToTry();
+                if (next.isPresent()) {
+                    player.createConnectionRequest(next.get()).connectWithIndication()
+                            .whenComplete((success, ex) -> {
+                                if (ex != null || success == null || !success) {
+                                    player.disconnect(Component.text("Your server has been changed, but we could "
+                                            + "not move you to any fallback servers."));
+                                }
+                                latch.countDown();
+                            });
+                } else {
+                    latch.countDown();
+                    player.disconnect(Component.text("Your server has been changed, but we could "
+                            + "not move you to any fallback servers."));
+                }
+            }
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                logger.error("Interrupted whilst moving players", e);
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        // If we have a new bind address, bind to it
+        if (!configuration.getBind().equals(newConfiguration.getBind())) {
+            this.cm.bind(newConfiguration.getBind());
+            this.cm.close(configuration.getBind());
+        }
+
+        if (configuration.isQueryEnabled() && (!newConfiguration.isQueryEnabled()
+                || newConfiguration.getQueryPort() != configuration.getQueryPort())) {
+            this.cm.close(new InetSocketAddress(
+                    configuration.getBind().getHostString(), configuration.getQueryPort()));
+        }
+
+        if (newConfiguration.isQueryEnabled()) {
+            this.cm.queryBind(newConfiguration.getBind().getHostString(),
+                    newConfiguration.getQueryPort());
+        }
+
+        commandManager.setAnnounceProxyCommands(newConfiguration.isAnnounceProxyCommands());
+        ipAttemptLimiter = Ratelimiters.createWithMilliseconds(newConfiguration.getLoginRatelimit());
+        this.configuration = newConfiguration;
+        eventManager.fireAndForget(new ProxyReloadEvent());
+        return true;
+    }
+
+    /**
+     * Shuts down the proxy, kicking players with the specified {@param reason}.
+     *
+     * @param explicitExit whether the user explicitly shut down the proxy
+     * @param reason       message to kick online players with
+     */
+    public void shutdown(boolean explicitExit, Component reason) {
+        if (eventManager == null || pluginManager == null || cm == null || scheduler == null) {
+            throw new AssertionError();
+        }
+
+        if (!shutdownInProgress.compareAndSet(false, true)) {
+            return;
+        }
+
+        Runnable shutdownProcess = () -> {
+            logger.info("Shutting down the proxy...");
+
+            // Shutdown the connection manager, this should be
+            // done first to refuse new connections
+            cm.shutdown();
+
+            ImmutableList<ConnectedPlayer> players = ImmutableList.copyOf(connectionsByUuid.values());
+            for (ConnectedPlayer player : players) {
+                player.disconnect(reason);
+            }
+
+            try {
+                boolean timedOut = false;
+
+                try {
+                    // Wait for the connections finish tearing down, this
+                    // makes sure that all the disconnect events are being fired
+
+                    CompletableFuture<Void> playersTeardownFuture = CompletableFuture.allOf(players.stream()
+                            .map(ConnectedPlayer::getTeardownFuture)
+                            .toArray((IntFunction<CompletableFuture<Void>[]>) CompletableFuture[]::new));
+
+                    playersTeardownFuture.get(10, TimeUnit.SECONDS);
+                } catch (TimeoutException e) {
+                    timedOut = true;
+                } catch (ExecutionException e) {
+                    timedOut = true;
+                    logger.error("Exception while tearing down player connections", e);
+                }
+
+                eventManager.fire(new ProxyShutdownEvent()).join();
+
+                timedOut = !eventManager.shutdown() || timedOut;
+                timedOut = !scheduler.shutdown() || timedOut;
+
+                if (timedOut) {
+                    logger.error("Your plugins took over 10 seconds to shut down.");
+                }
+            } catch (InterruptedException e) {
+                // Not much we can do about this...
+                Thread.currentThread().interrupt();
+            }
+
+            // Since we manually removed the shutdown hook, we need to handle the shutdown ourselves.
+            LogManager.shutdown();
+
+            shutdown = true;
+
+            if (explicitExit) {
+                AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                    @Override
+                    @SuppressFBWarnings("DM_EXIT")
+                    public Void run() {
+                        System.exit(0);
+                        return null;
+                    }
+                });
+            }
+        };
+
+        if (explicitExit) {
+            Thread thread = new Thread(shutdownProcess);
+            thread.start();
+        } else {
+            shutdownProcess.run();
+        }
+    }
+
+    /**
+     * Calls {@link #shutdown(boolean, Component)} with the default reason "Proxy shutting down."
+     *
+     * @param explicitExit whether the user explicitly shut down the proxy
+     */
+    public void shutdown(boolean explicitExit) {
+        shutdown(explicitExit, Component.translatable("velocity.kick.shutdown"));
+    }
+
+    @Override
+    public void shutdown(Component reason) {
+        shutdown(true, reason);
+    }
+
+    @Override
+    public void shutdown() {
+        shutdown(true);
+    }
+
+    public AsyncHttpClient getAsyncHttpClient() {
+        return cm.getHttpClient();
+    }
+
+    public Ratelimiter getIpAttemptLimiter() {
+        return ipAttemptLimiter;
+    }
+
+    /**
+     * Checks if the {@code connection} can be registered with the proxy.
+     *
+     * @param connection the connection to check
+     * @return {@code true} if we can register the connection, {@code false} if not
+     */
+    public boolean canRegisterConnection(ConnectedPlayer connection) {
+        if (configuration.isOnlineMode() && configuration.isOnlineModeKickExistingPlayers()) {
+            return true;
+        }
+        String lowerName = connection.getUsername().toLowerCase(Locale.US);
+        return !(connectionsByName.containsKey(lowerName)
+                || connectionsByUuid.containsKey(connection.getUniqueId()));
+    }
+
+    /**
+     * Attempts to register the {@code connection} with the proxy.
+     *
+     * @param connection the connection to register
+     * @return {@code true} if we registered the connection, {@code false} if not
+     */
+    public boolean registerConnection(ConnectedPlayer connection) {
+        String lowerName = connection.getUsername().toLowerCase(Locale.US);
+
+        if (!this.configuration.isOnlineModeKickExistingPlayers()) {
+            if (connectionsByName.putIfAbsent(lowerName, connection) != null) {
+                return false;
+            }
+            if (connectionsByUuid.putIfAbsent(connection.getUniqueId(), connection) != null) {
+                connectionsByName.remove(lowerName, connection);
+                return false;
+            }
+        } else {
+            ConnectedPlayer existing = connectionsByUuid.get(connection.getUniqueId());
+            if (existing != null) {
+                existing.disconnect(Component.translatable("multiplayer.disconnect.duplicate_login"));
+            }
+
+            // We can now replace the entries as needed.
+            connectionsByName.put(lowerName, connection);
+            connectionsByUuid.put(connection.getUniqueId(), connection);
+        }
+        return true;
+    }
+
+    /**
+     * Unregisters the given player from the proxy.
+     *
+     * @param connection the connection to unregister
+     */
+    public void unregisterConnection(ConnectedPlayer connection) {
+        connectionsByName.remove(connection.getUsername().toLowerCase(Locale.US), connection);
+        connectionsByUuid.remove(connection.getUniqueId(), connection);
+        bossBarManager.onDisconnect(connection);
+    }
+
+    @Override
+    public Optional<Player> getPlayer(String username) {
+        Preconditions.checkNotNull(username, "username");
+        return Optional.ofNullable(connectionsByName.get(username.toLowerCase(Locale.US)));
+    }
+
+    @Override
+    public Optional<Player> getPlayer(UUID uuid) {
+        Preconditions.checkNotNull(uuid, "uuid");
+        return Optional.ofNullable(connectionsByUuid.get(uuid));
+    }
+
+    @Override
+    public Collection<Player> matchPlayer(String partialName) {
+        Objects.requireNonNull(partialName);
+
+        return getAllPlayers().stream().filter(p -> p.getUsername()
+                        .regionMatches(true, 0, partialName, 0, partialName.length()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Collection<RegisteredServer> matchServer(String partialName) {
+        Objects.requireNonNull(partialName);
+
+        return getAllServers().stream().filter(s -> s.getServerInfo().getName()
+                        .regionMatches(true, 0, partialName, 0, partialName.length()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Collection<Player> getAllPlayers() {
+        return ImmutableList.copyOf(connectionsByUuid.values());
+    }
+
+    @Override
+    public int getPlayerCount() {
+        return connectionsByUuid.size();
+    }
+
+    @Override
+    public Optional<RegisteredServer> getServer(String name) {
+        return servers.getServer(name);
+    }
+
+    @Override
+    public Collection<RegisteredServer> getAllServers() {
+        return servers.getAllServers();
+    }
+
+    @Override
+    public RegisteredServer createRawRegisteredServer(ServerInfo server) {
+        return servers.createRawRegisteredServer(server);
+    }
+
+    @Override
+    public RegisteredServer registerServer(ServerInfo server) {
+        return servers.register(server);
+    }
+
+    @Override
+    public void unregisterServer(ServerInfo server) {
+        servers.unregister(server);
+    }
+
+    @Override
+    public VelocityConsole getConsoleCommandSource() {
+        return console;
+    }
+
+    @Override
+    public PluginManager getPluginManager() {
+        return pluginManager;
+    }
+
+    @Override
+    public VelocityEventManager getEventManager() {
+        return eventManager;
+    }
+
+    @Override
+    public VelocityScheduler getScheduler() {
+        return scheduler;
+    }
+
+    @Override
+    public VelocityChannelRegistrar getChannelRegistrar() {
+        return channelRegistrar;
+    }
+
+    @Override
+    public InetSocketAddress getBoundAddress() {
+        if (configuration == null) {
+            throw new IllegalStateException(
+                    "No configuration"); // even though you'll never get the chance... heh, heh
+        }
+        return configuration.getBind();
+    }
+
+    @Override
+    public @NonNull Iterable<? extends Audience> audiences() {
+        Collection<Audience> audiences = new ArrayList<>(this.getPlayerCount() + 1);
+        audiences.add(this.console);
+        audiences.addAll(this.getAllPlayers());
+        return audiences;
+    }
+
+    public AdventureBossBarManager getBossBarManager() {
+        return bossBarManager;
+    }
+
+    @Override
+    public ResourcePackInfo.Builder createResourcePackBuilder(String url) {
+        return new VelocityResourcePackInfo.BuilderImpl(url);
+    }
 }

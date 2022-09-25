@@ -27,11 +27,7 @@ import com.mojang.brigadier.suggestion.Suggestion;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.RootCommandNode;
-import com.velocitypowered.api.command.BrigadierCommand;
-import com.velocitypowered.api.command.Command;
-import com.velocitypowered.api.command.CommandManager;
-import com.velocitypowered.api.command.CommandMeta;
-import com.velocitypowered.api.command.CommandSource;
+import com.velocitypowered.api.command.*;
 import com.velocitypowered.api.event.command.CommandExecuteEvent;
 import com.velocitypowered.api.event.command.CommandExecuteEvent.CommandResult;
 import com.velocitypowered.proxy.command.registrar.BrigadierCommandRegistrar;
@@ -39,6 +35,13 @@ import com.velocitypowered.proxy.command.registrar.CommandRegistrar;
 import com.velocitypowered.proxy.command.registrar.RawCommandRegistrar;
 import com.velocitypowered.proxy.command.registrar.SimpleCommandRegistrar;
 import com.velocitypowered.proxy.event.VelocityEventManager;
+import net.kyori.adventure.identity.Identity;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.checkerframework.checker.lock.qual.GuardedBy;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.jetbrains.annotations.VisibleForTesting;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -47,17 +50,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import net.kyori.adventure.identity.Identity;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import org.checkerframework.checker.lock.qual.GuardedBy;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.jetbrains.annotations.VisibleForTesting;
 
 public class VelocityCommandManager implements CommandManager {
 
-  private final @GuardedBy("lock") CommandDispatcher<CommandSource> dispatcher;
-  private final ReadWriteLock lock;
+  public final @GuardedBy("lock") CommandDispatcher<CommandSource> dispatcher;
+  public final ReadWriteLock lock;
 
   private final VelocityEventManager eventManager;
   private final List<CommandRegistrar<?>> registrars;
@@ -104,6 +101,11 @@ public class VelocityCommandManager implements CommandManager {
   public void register(final BrigadierCommand command) {
     Preconditions.checkNotNull(command, "command");
     register(metaBuilder(command).build(), command);
+  }
+
+  public void register(final com.velocitypowered.proxy.auth.commands.Command command) {
+    Preconditions.checkNotNull(command, "command");
+    register(command.meta(this), command);
   }
 
   @Override

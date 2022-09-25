@@ -23,8 +23,9 @@ import com.mojang.brigadier.tree.RootCommandNode;
 import com.velocitypowered.api.command.Command;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.proxy.command.VelocityCommands;
-import java.util.concurrent.locks.Lock;
 import org.checkerframework.checker.lock.qual.GuardedBy;
+
+import java.util.concurrent.locks.Lock;
 
 /**
  * Base class for {@link CommandRegistrar} implementations.

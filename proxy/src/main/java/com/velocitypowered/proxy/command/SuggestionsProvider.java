@@ -35,16 +35,13 @@ import com.velocitypowered.api.command.CommandMeta;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.proxy.command.brigadier.VelocityArgumentCommandNode;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.locks.Lock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.lock.qual.GuardedBy;
+
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.locks.Lock;
 
 /**
  * Provides suggestions for a given command input.

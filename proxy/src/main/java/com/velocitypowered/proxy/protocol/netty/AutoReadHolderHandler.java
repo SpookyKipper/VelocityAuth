@@ -20,6 +20,7 @@ package com.velocitypowered.proxy.protocol.netty;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.ReferenceCountUtil;
+
 import java.util.ArrayDeque;
 import java.util.Queue;
 

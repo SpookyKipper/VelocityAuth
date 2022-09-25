@@ -23,6 +23,7 @@ import com.velocitypowered.api.command.BrigadierCommand;
 import com.velocitypowered.api.command.CommandMeta;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.proxy.command.VelocityCommands;
+
 import java.util.concurrent.locks.Lock;
 
 /**

@@ -20,9 +20,10 @@ package com.velocitypowered.proxy.connection.client;
 import com.velocitypowered.api.proxy.player.PlayerSettings;
 import com.velocitypowered.api.proxy.player.SkinParts;
 import com.velocitypowered.proxy.protocol.packet.ClientSettings;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 import java.util.Locale;
 import java.util.Objects;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class ClientSettingsWrapper implements PlayerSettings {
 

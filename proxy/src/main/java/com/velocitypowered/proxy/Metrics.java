@@ -18,13 +18,6 @@
 package com.velocitypowered.proxy;
 
 import com.velocitypowered.proxy.config.VelocityConfiguration;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bstats.MetricsBase;
@@ -34,6 +27,14 @@ import org.bstats.charts.SimplePie;
 import org.bstats.charts.SingleLineChart;
 import org.bstats.config.MetricsConfig;
 import org.bstats.json.JsonObjectBuilder;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Metrics {
 
@@ -110,7 +111,7 @@ public class Metrics {
       );
       metrics.addCustomChart(
           new SimplePie("online_mode",
-              () -> server.getConfiguration().isOnlineMode() ? "online" : "offline")
+              () -> ""+server.getConfiguration().isOnlineMode())
       );
       metrics.addCustomChart(new SimplePie("velocity_version",
           () -> server.getVersion().getVersion()));

@@ -19,9 +19,10 @@ package com.velocitypowered.proxy.network;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
-import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.util.function.Supplier;
 
 public class BackendChannelInitializerHolder implements Supplier<ChannelInitializer<Channel>> {
 

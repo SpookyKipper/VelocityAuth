@@ -22,8 +22,9 @@ import com.velocitypowered.api.proxy.player.TabList;
 import com.velocitypowered.api.proxy.player.TabListEntry;
 import com.velocitypowered.api.util.GameProfile;
 import com.velocitypowered.proxy.protocol.packet.PlayerListItem;
-import java.util.Optional;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.Optional;
 
 public class VelocityTabListEntry implements TabListEntry {
 

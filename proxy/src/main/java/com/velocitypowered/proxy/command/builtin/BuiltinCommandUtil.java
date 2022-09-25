@@ -19,6 +19,7 @@ package com.velocitypowered.proxy.command.builtin;
 
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;

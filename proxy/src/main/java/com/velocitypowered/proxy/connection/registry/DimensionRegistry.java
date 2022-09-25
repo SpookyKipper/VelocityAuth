@@ -21,13 +21,14 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.velocitypowered.api.network.ProtocolVersion;
-import java.util.Map;
-import java.util.Set;
 import net.kyori.adventure.nbt.BinaryTag;
 import net.kyori.adventure.nbt.BinaryTagTypes;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
 import net.kyori.adventure.nbt.ListBinaryTag;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.Map;
+import java.util.Set;
 
 public final class DimensionRegistry {
 

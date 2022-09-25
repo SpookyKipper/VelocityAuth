@@ -27,9 +27,10 @@ import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import com.mojang.brigadier.tree.RootCommandNode;
 import com.velocitypowered.proxy.command.brigadier.VelocityArgumentCommandNode;
-import java.util.concurrent.locks.Lock;
 import org.checkerframework.checker.lock.qual.GuardedBy;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.concurrent.locks.Lock;
 
 /**
  * Copies the nodes of a {@link RootCommandNode} to a possibly non-empty
@@ -40,8 +41,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public final class CommandGraphInjector<S> {
 
-  private static final StringRange ALIAS_RANGE = StringRange.at(0);
-  private static final StringReader ALIAS_READER = new StringReader("");
+  public static final StringRange ALIAS_RANGE = StringRange.at(0);
+  public static final StringReader ALIAS_READER = new StringReader("");
 
   private final @GuardedBy("lock") CommandDispatcher<S> dispatcher;
   private final Lock lock;

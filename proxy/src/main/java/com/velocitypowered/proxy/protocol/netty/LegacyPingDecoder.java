@@ -17,17 +17,18 @@
 
 package com.velocitypowered.proxy.protocol.netty;
 
-import static com.velocitypowered.proxy.protocol.util.NettyPreconditions.checkFrame;
-
 import com.velocitypowered.proxy.protocol.packet.LegacyHandshake;
 import com.velocitypowered.proxy.protocol.packet.LegacyPing;
 import com.velocitypowered.proxy.protocol.packet.legacyping.LegacyMinecraftPingVersion;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
+
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+
+import static com.velocitypowered.proxy.protocol.util.NettyPreconditions.checkFrame;
 
 public class LegacyPingDecoder extends ByteToMessageDecoder {
 

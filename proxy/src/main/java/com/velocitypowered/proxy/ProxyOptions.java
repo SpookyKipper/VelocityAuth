@@ -17,14 +17,15 @@
 
 package com.velocitypowered.proxy;
 
-import java.io.IOException;
-import java.util.Arrays;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 public final class ProxyOptions {
   private static final Logger logger = LogManager.getLogger(ProxyOptions.class);
