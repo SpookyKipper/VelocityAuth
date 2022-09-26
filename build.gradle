@@ -6,7 +6,7 @@ plugins {
 
 allprojects {
     group 'com.velocitypowered'
-    version 'VelocityAuth-1.3.2-Velocity-3.1.2-SNAPSHOT'
+    version 'VelocityAuth-1.3.3-Velocity-3.1.2-SNAPSHOT'
 
     ext {
         // dependency versions
