@@ -85,8 +85,10 @@ import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.translation.GlobalTranslator;
 import net.kyori.adventure.translation.TranslationRegistry;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.asynchttpclient.AsyncHttpClient;
 import org.checkerframework.checker.nullness.qual.EnsuresNonNull;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
@@ -146,6 +148,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     private @MonotonicNonNull KeyPair serverKeyPair;
     private boolean shutdown = false;
     private @MonotonicNonNull Ratelimiter ipAttemptLimiter;
+    private boolean isDebug = false;
 
     VelocityServer(final ProxyOptions options) throws Exception {
         pluginManager = new VelocityPluginManager(this);
@@ -331,6 +334,16 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
             }
 
             logger.info("executable-commands: " + sb.toString());
+        }).build());
+
+        commandManager.register(new Command.Builder("debug", "velocity.debug", invocation -> {
+            if(isDebug) {
+                Configurator.setRootLevel(Level.INFO);
+                logger.info("Disabled debug logging.");
+            } else{
+                Configurator.setRootLevel(org.apache.logging.log4j.Level.DEBUG);
+                logger.info("Enabled debug logging.");
+            }
         }).build());
     }
 

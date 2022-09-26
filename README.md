@@ -58,6 +58,7 @@ and you should see a fast increase in player count.
   - `plugins or pl` will display a list of all installed velocity plugins.
   - `servers` will display a list of all registered Minecraft servers.
   - `player <name>` will display details about the connected player.
+  - `debug` toggles debug logging on/off.
 
 ## Player commands
 
