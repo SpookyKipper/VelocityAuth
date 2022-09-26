@@ -62,11 +62,11 @@ import static com.velocitypowered.proxy.crypto.EncryptionUtils.generateServerId;
 public class InitialLoginSessionHandler implements MinecraftSessionHandler {
 
     static class CachedResult{
-        public String usernameOrUuid;
+        public String username;
         public boolean isValid;
 
-        public CachedResult(String usernameOrUuid, boolean isValid) {
-            this.usernameOrUuid = usernameOrUuid;
+        public CachedResult(String username, boolean isValid) {
+            this.username = username;
             this.isValid = isValid;
         }
     }
@@ -99,7 +99,7 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
     public boolean handle(ServerLogin packet) {
         assertState(LoginState.LOGIN_PACKET_EXPECTED);
         this.currentState = LoginState.LOGIN_PACKET_RECEIVED;
-        VelocityAuth.INSTANCE.logger.debug("Received login packet.");
+        logger.debug("Received login packet.");
         IdentifiedKey playerKey = packet.getPlayerKey();
         if (playerKey != null) {
             if (playerKey.hasExpired()) {
@@ -150,70 +150,44 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
                             return;
                         }
 
-                        if (mcConnection.getProtocolVersion().compareTo(ProtocolVersion.MINECRAFT_1_19_1) >= 0) {
-                            VelocityAuth.INSTANCE.logger.debug("client >= 1.19.1");
-                            // 1.19.1 and above
-                            // online-mode players: 100% OK
-                            // offline-mode players: 100% OK
-                            mcConnection.eventLoop().execute(() -> {
-                                if (packet.getHolderUuid() == null ||
-                                !isValidAccount(packet.getHolderUuid().toString())) { // Probably a connection from an offline/cracked player
-                                    VelocityAuth.INSTANCE.logger.debug("client = offline");
-                                    if (server.getConfiguration().isOnlineMode()) {
-                                        inbound.disconnect(Component.text("This server does not allow offline-mode players."));
-                                        return;
-                                    }
-                                    connectOfflineMode();
-                                } else { // Probably a connection from an online/regular player
-                                    VelocityAuth.INSTANCE.logger.debug("client = online");
-                                    sendEncryptionRequest();
-                                }
-                            });
-                        } else {
-                            VelocityAuth.INSTANCE.logger.debug("client < 1.19.1");
-                            // 1.19.0 and below
-                            // online-mode players: 100% OK
-                            // offline-mode players: 99% OK
-                            // Work on all Minecraft clients, some will get "Invalid Session" error and directly disconnect from server,
-                            // if they are not premium players with nickname from some premium account the encryption request was sent.
-                            mcConnection.eventLoop().execute(() -> {
-                                if (isValidAccount(login.getUsername())) { // Probably a connection from an online/regular player
-                                    VelocityAuth.INSTANCE.logger.debug("client = online");
-                                    byte[] oldVerify = (this.verify != null ? Arrays.copyOf(this.verify, this.verify.length) : null);
-                                    LoginState oldState = this.currentState;
-                                    sendEncryptionRequest();
+                        mcConnection.eventLoop().execute(() -> {
+                            if (isValidAccount(login.getUsername(), login.getHolderUuid())) { // Probably a connection from an online/regular player
+                                logger.debug(login.getUsername()+" = online-mode");
+                                byte[] oldVerify = (this.verify != null ? Arrays.copyOf(this.verify, this.verify.length) : null);
+                                LoginState oldState = this.currentState;
+                                sendEncryptionRequest();
 
-                                    if (!server.getConfiguration().isOnlineMode()) {
-                                        VelocityAuth.INSTANCE.executor.execute(() -> {
-                                            try {
-                                                for (int i = 0; i < 30; i++) { // 3 seconds max
-                                                    Thread.sleep(100);
-                                                    if (this.currentState == LoginState.ENCRYPTION_RESPONSE_RECEIVED) {
-                                                        // Means we received a response which is handled in the
-                                                        // handle(EncryptionResponse packet) method further below.
-                                                        // Thus, our job here is done, and we return.
-                                                        return;
-                                                    }
+                                if (!server.getConfiguration().isOnlineMode()) {
+                                    VelocityAuth.INSTANCE.executor.execute(() -> {
+                                        try {
+                                            for (int i = 0; i < 30; i++) { // 3 seconds max
+                                                Thread.sleep(100);
+                                                if (this.currentState == LoginState.ENCRYPTION_RESPONSE_RECEIVED) {
+                                                    // Means we received a response which is handled in the
+                                                    // handle(EncryptionResponse packet) method further below.
+                                                    // Thus, our job here is done, and we return.
+                                                    return;
                                                 }
-                                                VelocityAuth.INSTANCE.logger.warn("client = offline");
-                                                mcConnection.eventLoop().execute(() -> {
-                                                    // Means that we didn't receive a response for the encryption within 3 seconds
-                                                    // thus continue with offline mode login instead:
-                                                    this.verify = oldVerify;
-                                                    this.currentState = oldState;
-                                                    connectOfflineMode();
-                                                });
-                                            } catch (Exception e) {
-                                                logger.error("Exception in pre-login stage", e);
                                             }
-                                        });
-                                    }
-
-                                } else { // Probably a connection from an offline/cracked player
-                                    connectOfflineMode();
+                                            logger.warn(login.getUsername()+" = offline-mode (expected online-mode but didn't receive encryption response within 3 seconds)");
+                                            mcConnection.eventLoop().execute(() -> {
+                                                // Means that we didn't receive a response for the encryption within 3 seconds
+                                                // thus continue with offline mode login instead:
+                                                this.verify = oldVerify;
+                                                this.currentState = oldState;
+                                                connectOfflineMode();
+                                            });
+                                        } catch (Exception e) {
+                                            logger.error("Exception in pre-login stage", e);
+                                        }
+                                    });
                                 }
-                            });
-                        }
+
+                            } else { // Probably a connection from an offline/cracked player
+                                logger.warn(login.getUsername()+" = offline-mode");
+                                connectOfflineMode();
+                            }
+                        });
                     });
                 }, mcConnection.eventLoop())
                 .exceptionally((ex) -> {
@@ -243,58 +217,34 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
 
     /**
      * Returns true if the provided username is registered
-     * at Mojang and false if not.
-     * @param usernameOrUuid Mojang username or uuid.
+     * at Mojang. If the UUID is provided it also fetches the actual UUID from Mojang
+     * and compares then (returns true if they match).
+     * @param username player username cannot be null.
+     * @param uuid player uuid can be null.
      */
-    public static boolean isValidAccount(String usernameOrUuid) {
-        // Check cache first
-        synchronized (cachedResults){
-            for (CachedResult cachedResult : cachedResults) {
-                if(Objects.equals(cachedResult.usernameOrUuid, usernameOrUuid)){
-                    return cachedResult.isValid;
-                }
-            }
-        }
+    public static boolean isValidAccount(String username, UUID uuid) {
+        Objects.requireNonNull(username);
+        String uuidByMojang = fetchMojangUUID(username);
+        if(uuidByMojang == null) return false; // Means that the username does not exist at Mojang
+        if(uuid != null){
+            // This is the optimal case for checking if the account is valid.
+            // Usually only works for clients >= 1.19.1
+            // If the provided uuid matches the one by Mojang this account is valid
+            return Objects.equals(uuidByMojang, uuid.toString().replace("-", ""));
+        } else
+            return true; // Only username matched
+    }
+
+    public static String fetchMojangUUID(String username){
         // Check Mojang API
         try {
-            Json.fromUrlAsObject(MOJANG_BASE + usernameOrUuid);
-            synchronized (cachedResults){
-                if(cachedResults.size()>=100) cachedResults.poll();
-                cachedResults.add(new CachedResult(usernameOrUuid, true));
-            }
-            return true;
+            logger.debug(MOJANG_BASE + username);
+            return Json.fromUrlAsObject(MOJANG_BASE + username).get("id").getAsString();
         } catch (Exception ignored) {
             // Always throws exception when status != 200, which happens when the
             // username does not exist in the Mojang database, or the API is down
         }
-
-        // Fallback to Minetools API
-        try {
-            JsonObject obj = Json.fromUrlAsObject(MINETOOLS_BASE + usernameOrUuid);
-            // If the username does not exist this status has ERR
-            if (obj.get("status").getAsString().equals("ERR")) {
-                synchronized (cachedResults){
-                    if(cachedResults.size()>=100) cachedResults.poll();
-                    cachedResults.add(new CachedResult(usernameOrUuid, false));
-                }
-                return false;
-            }
-            String apiUsername = obj.get("name").getAsString();
-            boolean result = Objects.equals(usernameOrUuid, apiUsername);
-            synchronized (cachedResults){
-                if(cachedResults.size()>=100) cachedResults.poll();
-                cachedResults.add(new CachedResult(usernameOrUuid, result));
-            }
-            return result;
-        } catch (Exception e) { // Means that both APIs are down
-            logger.error("Exception when trying to get Minecraft profile for " + usernameOrUuid + ". Mojang and Minetools APIs probably down.", e);
-        }
-
-        synchronized (cachedResults){
-            if(cachedResults.size()>=100) cachedResults.poll();
-            cachedResults.add(new CachedResult(usernameOrUuid, false));
-        }
-        return false;
+        return null;
     }
 
     @Override
