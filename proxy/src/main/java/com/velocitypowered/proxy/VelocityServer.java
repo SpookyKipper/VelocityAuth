@@ -286,6 +286,11 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
             logger.info("Showing " + servers.size() + " registered Minecraft servers:");
             for (RegisteredServer server : servers) {
                 ServerInfo d = server.getServerInfo();
+                logger.info(d.getName() + " at " + d.getAddress() + " with  " + server.getPlayersConnected().size() + " players");
+            }
+            logger.info("Showing " + servers.size() + " registered Minecraft servers (detailed):");
+            for (RegisteredServer server : servers) {
+                ServerInfo d = server.getServerInfo();
                 String details = null;
                 try {
                     details = server.ping().get().toString();
