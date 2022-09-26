@@ -21,8 +21,12 @@ import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 
 import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class Velocity {
 
@@ -51,12 +55,16 @@ public class Velocity {
 
   /**
    * Main method that the JVM will call when {@code java -jar velocity.jar} is executed.
-   * @param args the arguments to the proxy
+   * @param _args the arguments to the proxy
    */
-  public static void main(String... args) throws Exception {
-    final ProxyOptions options = new ProxyOptions(args);
+  public static void main(String... _args) throws Exception {
+    List<String> args = (_args!=null ? new ArrayList<>(Arrays.asList(_args)) : new ArrayList<>());
+    final ProxyOptions options = new ProxyOptions(_args);
     if (options.isHelp()) {
       return;
+    }
+    if(args.contains("debug")){
+      Configurator.setRootLevel(org.apache.logging.log4j.Level.DEBUG);
     }
 
     long startTime = System.currentTimeMillis();
