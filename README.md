@@ -4,6 +4,7 @@ A Minecraft server proxy with unparalleled server support, scalability,
 and flexibility. This fork includes new commands and better support for offline-mode players.
 
 ## Usage
+0. Requirement: SQL database (normally pre-installed and auto-started on your system).
 1. Download my velocity fork from [here](https://github.com/Osiris-Team/Velocity/releases).
 2. Stop your proxy and replace the old velocity jar with the new/downloaded one.
 3. Make sure all your minecraft servers have `online-mode=false` in their `server.properties`
