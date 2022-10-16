@@ -4,7 +4,7 @@ A Minecraft server proxy with unparalleled server support, scalability,
 and flexibility. This fork includes new commands and better support for offline-mode players.
 
 ## Usage
-1. Download the velocity jar from the latest release [here](https://github.com/Osiris-Team/Velocity/releases).
+1. Download my velocity fork from [here](https://github.com/Osiris-Team/Velocity/releases).
 2. Stop your proxy and replace the old velocity jar with the new/downloaded one.
 3. Make sure all your minecraft servers have `online-mode=false` in their `server.properties`
    (also set it in `velocity.toml`).
