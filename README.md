@@ -1,4 +1,4 @@
-# Velocity
+# VelocityAuth (Archive)
 
 A Minecraft server proxy with unparalleled server support, scalability,
 and flexibility. This fork includes new commands and better support for offline-mode players.
